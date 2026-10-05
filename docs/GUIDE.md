@@ -114,7 +114,7 @@ All of this lives in `app/js/engine.js`. Read the comments there alongside this 
 2. **Place a secret solution:** one queen per row and per column, with neighbouring rows ≥ 2 columns apart (backtracking).
 3. **Grow regions:** each queen starts a region, and regions expand into random neighbouring cells until the board is full.
 4. **Make it unique:** an exact solver looks for a second solution. If it finds one, a cell used by that other solution is handed to a neighbouring region, which breaks it. Repeat until only our solution is left.
-5. **Rate it like a human:** a solver that only uses human logic (tiers Easy/Medium/Hard; see BUILD_JOURNAL Step 3). If it can't finish, the puzzle needs guessing and is thrown away.
+5. **Rate it like a human:** a solver that only uses human logic (tiers Easy/Medium/Hard; see BUILD_JOURNAL Step 3). For a line-by-line walkthrough of the Medium "squeeze" rule, see BUILD_JOURNAL → *Concept deep-dives → Deep-dive 1*. If it can't finish, the puzzle needs guessing and is thrown away.
 6. **Match the level's difficulty band.** If the puzzle is too easy or too hard for its level, try again (up to 500 tries; usually 1–40).
 
 **Why generate rather than store puzzles?** No puzzle files to manage, unlimited levels, and a tiny download (the whole app is about 125 KB including icons).

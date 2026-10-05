@@ -225,6 +225,119 @@ A light-mode screenshot of a game in progress confirmed:
 
 ---
 
+## Session 2 — 5 October 2026: explaining the "squeeze" rule
+
+- **Goal:** explain `sets()` in `app/js/engine.js` (the Medium-difficulty deduction), which you selected in VS Code and asked about.
+- **Files changed:**
+  - `docs/BUILD_JOURNAL.md`: added "Concept deep-dive 1" below.
+  - `docs/GUIDE.md` §4: added a link to the deep-dive.
+- **Code changed:** none. **Tests:** not re-run, because only docs changed.
+
+---
+
+## Concept deep-dives
+
+### Deep-dive 1: the "squeeze" rule, `sets(kMin, kMax)` in engine.js
+
+**The idea, without code.** Suppose that after some × marks, the Blue and Green regions only have open cells left in rows 3 and 4:
+
+```
+row 3:  B  B  G  G  Y
+row 4:  B  G  G  Y  Y
+```
+
+- Blue needs a crown, and so does Green: **2 crowns that must land in rows 3–4**.
+- Rows 3 and 4 hold exactly 2 crowns in total (one each).
+- So Blue and Green take both of them, and **Yellow can't have a crown in row 3 or 4**:
+
+```
+row 3:  B  B  G  G  ×
+row 4:  B  G  G  ×  ×
+```
+
+With K = 1 it's the simplest version: if region C only has room in row 1, then row 1's crown is C's, so every non-C cell in row 1 gets ×. Puzzle guides call this **"region confinement"**, or a pigeonhole argument.
+
+The same logic works for every pair of unit types (0 = row, 1 = column, 2 = region). That's why the function loops over `a` (the units being squeezed) and `b` (the units they're squeezed into), skipping `a === b`:
+
+| `a` | `b` | Example |
+|---|---|---|
+| region | row | Blue+Green fit only in rows 3–4 → × the rest of rows 3–4 |
+| region | column | Purple fits only in column 2 → × the rest of column 2 |
+| row | region | Row 0's open cells are all orange → orange's crown is in row 0 → × orange cells in other rows |
+| row/column | column/row | The same idea for the remaining pairs |
+
+**Bitmasks in 30 seconds.** A bitmask is one number used as a row of on/off switches.
+
+| Code | Meaning | Example |
+|---|---|---|
+| `1 << x` | only switch `x` on | `1 << 3` = `0b01000` |
+| `m \|= 1 << x` | turn switch `x` on in `m` | add row 3 to the set |
+| `(m >> x) & 1` | is switch `x` on? (1 or 0) | "does the set contain row 3?" |
+| `a \| b` | union of two sets | rows used by Blue **or** Green |
+| `popcount(m)` | number of switches on | size of the set |
+
+So `0b11000` means "the set {row 3, row 4}". Whole sets become single numbers, and combining them is one fast operation.
+
+**The code, step by step** (using `a` = region, `b` = row):
+
+1. **Record which rows each unsolved region can still use.**
+   ```js
+   if (hasQueen(a, u)) continue;                                     // already solved: skip
+   if (st[list[k]] === OPEN) m |= 1 << key(b, list[k]);              // switch on that cell's row
+   open.push(u); masks.push(m);
+   ```
+   - `key(b, cell)` answers "which row is this cell in?"
+   - Blue and Green both end up with `m = 0b11000`.
+2. **Try every group of those regions.**
+   ```js
+   for (var sub = 1; sub < (1 << M); sub++)
+   ```
+   - `sub` is a bitmask over *positions in the `open` list*.
+   - Counting from 1 to 2^M − 1 visits every possible group once. With 3 unsolved regions: 001, 010, 011, 100, 101, 110, 111.
+3. **Skip groups of the wrong size.**
+   ```js
+   if (size_ < kMin || size_ > kMax || size_ >= M) continue;
+   ```
+   - `logicSolve` first calls `sets(1, 1)`: one region squeezed into one row, which counts as **Easy**. Only if that fails does it call `sets(2, n)`: groups of 2 or more, which makes the puzzle **Medium**.
+   - `size_ >= M` skips the group "all remaining regions". That group always fits trivially and can't teach anything.
+4. **Work out what the group covers.**
+   ```js
+   union |= masks[j]; inS |= 1 << open[j];
+   ```
+   - `union` holds the rows any member can use.
+   - `inS` holds the **real region ids** in the group. Note that this is a different numbering from `sub`, which counts list positions.
+5. **The squeeze test.**
+   ```js
+   if (popcount(union) !== size_) continue;
+   ```
+   "Do K regions fit into exactly K rows?" For {Blue, Green}: 2 regions, 2 rows. ✓
+6. **Mark × on every other cell in those rows.** For each open cell in rows 3 and 4: if its region (`key(a, cell)`) isn't in `inS`, mark it ×. These are the Yellow cells.
+7. **Stop after one useful deduction.**
+   ```js
+   if (changed) return true;
+   ```
+   - The main loop then goes back to the simplest rules first. So a puzzle is only rated Medium if the simple rules really got stuck.
+   - If a group fits but changes nothing, the search keeps going.
+
+**Speed.**
+- At most 2^10 = 1024 groups, tried for 6 (`a`, `b`) pairs.
+- That's about 6,000 bit operations per call, which takes microseconds.
+
+**Check it yourself.** Open `tests/engine.test.html`, press F12 → Console, and type:
+
+```js
+(0b11000).toString(2)                        // "11000"
+1 << 3                                        // 8   (binary 1000)
+var p = QueensEngine.generateLevel(19);
+QueensEngine.logicSolve(p.size, p.regions)   // {solved: true, tier: 2}  -> needed a group of 2+
+```
+
+Try `generateLevel(18)` for comparison; it should report tier 1.
+
+**Exercise.** Explain why "row 0's open cells are all orange" lets you × orange cells in *other* rows. Which `a`/`b` values handle that case?
+
+---
+
 ## Troubleshooting reference (problems you are likely to meet)
 
 | Symptom | Cause | Fix |
