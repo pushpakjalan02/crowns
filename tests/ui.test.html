@@ -1,0 +1,132 @@
+<!doctype html>
+<!--
+  Automated gameplay test. Loads the real app in an iframe and plays it with
+  simulated taps and drags. Must be opened through a local web server
+  (http://127.0.0.1:8765/tests/ui.test.html) - see docs/BUILD_JOURNAL.md.
+-->
+<html>
+<head><meta charset="utf-8"><title>UI tests</title></head>
+<body>
+<pre id="out">running...</pre>
+<iframe id="f" style="width:390px;height:844px;border:1px solid #ccc"></iframe>
+<script>
+(async function () {
+  var lines = [], failures = 0;
+  function check(name, ok, detail) {
+    if (!ok) failures++;
+    lines.push((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  (' + detail + ')' : ''));
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  var frame = document.getElementById('f');
+
+  function load(hash) {
+    return new Promise(function (resolve) {
+      frame.onload = function () { setTimeout(resolve, 300); };
+      frame.src = '../app/index.html?t=' + Date.now() + hash;
+    });
+  }
+  function W() { return frame.contentWindow; }
+  function D() { return frame.contentDocument; }
+  function cellEl(i) { return D().getElementById('board').children[i]; }
+  function center(i) {
+    var r = cellEl(i).getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  function fire(type, i) {
+    var p = center(i);
+    D().getElementById('board').dispatchEvent(new (W().PointerEvent)(type, {
+      bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: p.x, clientY: p.y
+    }));
+  }
+  function tap(i) { fire('pointerdown', i); fire('pointerup', i); }
+  function drag(cells) {
+    fire('pointerdown', cells[0]);
+    cells.slice(1).forEach(function (i) { fire('pointermove', i); });
+    fire('pointerup', cells[cells.length - 1]);
+  }
+  function save() { return JSON.parse(W().localStorage.getItem('crowns.save.v1') || '{}'); }
+
+  try {
+    // Fresh start, tutorial already seen.
+    localStorage.clear();
+    localStorage.setItem('crowns.seenHowTo', '1');
+
+    // --- Home screen
+    await load('#/');
+    check('home screen visible', D().getElementById('screen-home').classList.contains('active'));
+    check('continue button says level 1', /level 1$/.test(D().getElementById('btn-continue').textContent));
+
+    // --- Tap cycle on level 3
+    await load('#/play/3');
+    var E = W().QueensEngine, p = E.generateLevel(3), n = p.size;
+    check('board has n*n cells', D().getElementById('board').children.length === n * n);
+    tap(0);
+    check('1 tap -> X mark', !!cellEl(0).querySelector('.ic.x:not(.auto)'));
+    tap(0);
+    check('2 taps -> crown', !!cellEl(0).querySelector('.ic.q'));
+    check('auto-X appears next to crown', !!cellEl(1).querySelector('.ic.x.auto'));
+    tap(0);
+    check('3 taps -> empty', cellEl(0).innerHTML === '');
+
+    // --- Conflict highlighting: two crowns touching diagonally
+    tap(0); tap(0); tap(n + 1); tap(n + 1);
+    check('touching crowns flagged red', cellEl(0).classList.contains('conflict') && cellEl(n + 1).classList.contains('conflict'));
+    D().getElementById('btn-undo').click();
+    check('undo removes last change', !cellEl(n + 1).querySelector('.ic.q') && !cellEl(0).classList.contains('conflict'));
+    D().getElementById('btn-clear').click();
+    check('clear empties board', Array.prototype.every.call(D().getElementById('board').children, function (c) { return c.innerHTML === ''; }));
+
+    // --- Drag marks several cells, and undo reverts the whole drag at once
+    drag([0, 1, 2]);
+    check('drag marks 3 cells', [0, 1, 2].every(function (i) { return !!cellEl(i).querySelector('.ic.x'); }));
+    D().getElementById('btn-undo').click();
+    check('undo reverts whole drag', [0, 1, 2].every(function (i) { return cellEl(i).innerHTML === ''; }));
+
+    // --- Progress survives a reload
+    tap(0);
+    await wait(50);
+    await load('#/play/3');
+    check('progress restored after reload', !!cellEl(0).querySelector('.ic.x'), JSON.stringify(save().progress));
+
+    // --- Solve it
+    D().getElementById('btn-clear').click();
+    p.solution.forEach(function (c, r) { tap(r * n + c); tap(r * n + c); });
+    await wait(900);
+    check('win dialog opens', D().getElementById('dlg-win').open);
+    var s = save();
+    check('level saved as solved', !!(s.solved && s.solved['3']), JSON.stringify(s.solved));
+    check('in-progress entry removed', !(s.progress && s.progress['3']));
+
+    // --- Next level button
+    D().getElementById('win-next').click();
+    await wait(300);
+    check('next level opens level 4', W().location.hash === '#/play/4' && D().getElementById('game-title').textContent === 'Level 4');
+
+    // --- Hint places a correct crown
+    D().getElementById('btn-hint').click();
+    var p4 = E.generateLevel(4), n4 = p4.size;
+    var hinted = p4.solution.some(function (c, r) { return !!cellEl(r * n4 + c).querySelector('.ic.q'); });
+    check('hint places a correct crown', hinted);
+
+    // --- Level select shows level 3 as solved
+    await load('#/levels');
+    var tile = D().querySelectorAll('.level-tile')[2];
+    check('level 3 tile marked solved', tile.classList.contains('solved'));
+
+    // --- Service worker (offline support)
+    var reg = await W().navigator.serviceWorker.getRegistration();
+    if (!reg) { await wait(1500); reg = await W().navigator.serviceWorker.getRegistration(); }
+    check('service worker registered', !!reg);
+    var keys = await W().caches.keys();
+    check('offline cache created', keys.indexOf('crowns-v1') >= 0, keys.join(','));
+  } catch (e) {
+    failures++;
+    lines.push('ERROR ' + e.message + '\n' + e.stack);
+  }
+  lines.push('');
+  lines.push(failures ? 'RESULT: ' + failures + ' FAILURE(S)' : 'RESULT: ALL PASSED');
+  document.getElementById('out').textContent = lines.join('\n');
+})();
+</script>
+</body>
+</html>

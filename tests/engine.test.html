@@ -1,0 +1,81 @@
+<!doctype html>
+<!--
+  Engine tests. Open this file in any browser (double-click) and read the report,
+  or run it headless from a terminal - see docs/BUILD_JOURNAL.md, "Running the tests".
+-->
+<html>
+<head><meta charset="utf-8"><title>Engine tests</title></head>
+<body>
+<pre id="out">running...</pre>
+<script src="../app/js/engine.js"></script>
+<script>
+(function () {
+  var E = window.QueensEngine;
+  var lines = [], failures = 0;
+  function check(name, ok, detail) {
+    if (!ok) failures++;
+    lines.push((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  (' + detail + ')' : ''));
+  }
+
+  // 1. Determinism: same level -> identical puzzle.
+  var a = E.generateLevel(42), b = E.generateLevel(42);
+  check('level 42 is deterministic', a.regions.join() === b.regions.join() && a.solution.join() === b.solution.join());
+
+  // 2. Generate a sample of levels from every size band and verify each one.
+  var sample = [];
+  for (var l = 1; l <= 40; l++) sample.push(l);
+  [45, 55, 61, 75, 90, 100, 101, 120, 150, 151, 200, 333, 500, 777, 1000].forEach(function (x) { sample.push(x); });
+
+  var stats = {}, worst = { ms: 0 };
+  sample.forEach(function (level) {
+    var t0 = performance.now();
+    var p = E.generateLevel(level);
+    var ms = performance.now() - t0;
+    var n = p.size, info = E.levelInfo(level);
+    var problems = [];
+
+    if (n !== info.size) problems.push('wrong size');
+    var counts = new Array(n).fill(0);
+    p.regions.forEach(function (g) { counts[g]++; });
+    if (counts.some(function (c) { return c === 0; })) problems.push('empty region');
+    if (E.countSolutions(n, p.regions, 2) !== 1) problems.push('not unique');
+    var sol = E.solveAll(n, p.regions, 1)[0];
+    if (sol.join() !== p.solution.join()) problems.push('stored solution mismatch');
+    if (!E.logicSolve(n, p.regions).solved) problems.push('needs guessing');
+
+    // The stored solution must pass the same checks the UI uses to detect a win.
+    var cells = new Uint8Array(n * n);
+    p.solution.forEach(function (c, r) { cells[r * n + c] = 2; });
+    if (!E.analyze(n, p.regions, cells).solved) problems.push('analyze() rejects solution');
+
+    check('level ' + level + ' (' + n + 'x' + n + ', tier ' + p.tier + ')', !problems.length,
+      problems.join(', ') + (problems.length ? '; ' : '') + ms.toFixed(0) + 'ms, attempts ' + p.attempts);
+
+    var k = n + 'x' + n;
+    stats[k] = stats[k] || { count: 0, total: 0, max: 0, tiers: [0, 0, 0, 0] };
+    stats[k].count++; stats[k].total += ms; stats[k].max = Math.max(stats[k].max, ms); stats[k].tiers[p.tier]++;
+    if (ms > worst.ms) worst = { ms: ms, level: level };
+  });
+
+  // 3. analyze() should catch touching queens and doubled rows.
+  var p1 = E.generateLevel(1), n1 = p1.size, c1 = new Uint8Array(n1 * n1);
+  c1[0] = 2; c1[n1 + 1] = 2; // (0,0) and (1,1) touch diagonally
+  var res = E.analyze(n1, p1.regions, c1);
+  check('diagonal touch is a conflict', res.conflictQueen[0] === 1 && res.conflictQueen[n1 + 1] === 1);
+  c1 = new Uint8Array(n1 * n1); c1[0] = 2; c1[3] = 2;
+  check('two queens in a row is a conflict', E.analyze(n1, p1.regions, c1).conflictQueen[0] === 1);
+
+  lines.push('');
+  lines.push('Timing by size (ms): avg / max, tiers [easy, medium, hard]');
+  Object.keys(stats).forEach(function (k) {
+    var s = stats[k];
+    lines.push('  ' + k + ': ' + (s.total / s.count).toFixed(0) + ' / ' + s.max.toFixed(0) + '  tiers ' + JSON.stringify(s.tiers.slice(1)));
+  });
+  lines.push('Slowest: level ' + worst.level + ' ' + worst.ms.toFixed(0) + 'ms');
+  lines.push('');
+  lines.push(failures ? 'RESULT: ' + failures + ' FAILURE(S)' : 'RESULT: ALL PASSED');
+  document.getElementById('out').textContent = lines.join('\n');
+})();
+</script>
+</body>
+</html>

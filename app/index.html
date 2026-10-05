@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#5b3cc4">
+  <meta name="description" content="Crowns: endless queens logic puzzles. Works offline.">
+  <title>Crowns</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Reusable crown drawing, referenced with <use href="#crown"> -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="crown" viewBox="0 0 24 24">
+      <path d="M3 8.5l4.5 4L12 5.5l4.5 7L21 8.5l-2 11H5z" fill="currentColor"/>
+      <circle cx="3" cy="8.5" r="1.3" fill="currentColor"/>
+      <circle cx="12" cy="5.5" r="1.3" fill="currentColor"/>
+      <circle cx="21" cy="8.5" r="1.3" fill="currentColor"/>
+    </symbol>
+  </svg>
+
+  <main id="app">
+    <!-- ============ HOME ============ -->
+    <section id="screen-home" class="screen">
+      <div class="hero">
+        <svg class="logo" viewBox="0 0 24 24"><use href="#crown"/></svg>
+        <h1>Crowns</h1>
+        <p class="muted">One crown in every row, column and colour.</p>
+      </div>
+      <div class="stack">
+        <button id="btn-continue" class="btn primary big" type="button">Play level 1</button>
+        <a href="#/levels" class="btn">All levels</a>
+        <div class="pair">
+          <button id="btn-howto" class="btn ghost" type="button">How to play</button>
+          <button id="btn-settings" class="btn ghost" type="button">Settings</button>
+        </div>
+      </div>
+      <p id="home-stats" class="muted center"></p>
+    </section>
+
+    <!-- ============ LEVEL SELECT ============ -->
+    <section id="screen-levels" class="screen">
+      <header class="topbar">
+        <a href="#/" class="icon-btn" aria-label="Back to home">&#8249;</a>
+        <h2>Levels</h2>
+        <span class="icon-btn" aria-hidden="true"></span>
+      </header>
+      <div id="level-grid" class="level-grid"></div>
+      <div class="pager">
+        <button id="pg-prev" class="btn ghost" type="button">&#8249; Prev</button>
+        <span id="pg-label" class="muted"></span>
+        <button id="pg-next" class="btn ghost" type="button">Next &#8250;</button>
+      </div>
+    </section>
+
+    <!-- ============ GAME ============ -->
+    <section id="screen-game" class="screen">
+      <header class="topbar">
+        <a href="#/levels" class="icon-btn" aria-label="Back to levels">&#8249;</a>
+        <div class="title">
+          <h2 id="game-title">Level 1</h2>
+          <span id="game-sub" class="muted small"></span>
+        </div>
+        <span id="timer" class="timer">0:00</span>
+      </header>
+      <div id="board" class="board" role="grid" aria-label="Puzzle board"></div>
+      <p id="message" class="message" aria-live="polite"></p>
+      <div class="controls">
+        <button id="btn-undo" class="btn" type="button">Undo</button>
+        <button id="btn-clear" class="btn" type="button">Clear</button>
+        <button id="btn-hint" class="btn" type="button">Hint</button>
+      </div>
+      <p class="muted small center">Tap once for &times;, twice for a crown. Drag to mark many &times;.</p>
+    </section>
+  </main>
+
+  <!-- ============ DIALOGS ============ -->
+  <dialog id="dlg-win">
+    <svg class="logo small-logo" viewBox="0 0 24 24"><use href="#crown"/></svg>
+    <h2>Solved!</h2>
+    <p class="win-time" id="win-time">0:00</p>
+    <p class="muted" id="win-extra"></p>
+    <div class="stack">
+      <button id="win-next" class="btn primary" type="button">Next level</button>
+      <button id="win-levels" class="btn ghost" type="button">All levels</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-howto">
+    <h2>How to play</h2>
+    <ol class="rules">
+      <li>Place exactly <b>one crown</b> in every <b>row</b>, every <b>column</b> and every <b>colour region</b>.</li>
+      <li>Two crowns can <b>never touch</b> each other, not even diagonally.</li>
+      <li>Tap a cell once to mark it with <b>&times;</b> (meaning "no crown here"). Tap again for a <b>crown</b>. Tap a third time to clear it.</li>
+      <li>Drag your finger across cells to mark many &times; at once.</li>
+      <li>Every puzzle has exactly <b>one solution</b> and can be solved by logic alone, without guessing.</li>
+    </ol>
+    <button class="btn primary" type="button" data-close>Got it</button>
+  </dialog>
+
+  <dialog id="dlg-settings">
+    <h2>Settings</h2>
+    <label class="toggle"><input type="checkbox" id="set-autoX"> Auto-mark &times; around crowns</label>
+    <label class="toggle"><input type="checkbox" id="set-showConflicts"> Highlight mistakes</label>
+    <label class="toggle"><input type="checkbox" id="set-showTimer"> Show timer</label>
+    <button id="btn-reset" class="btn danger" type="button">Reset all progress</button>
+    <p class="muted small"><span id="about"></span> <a href="privacy.html">Privacy</a></p>
+    <button class="btn primary" type="button" data-close>Done</button>
+  </dialog>
+
+  <script src="js/engine.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
